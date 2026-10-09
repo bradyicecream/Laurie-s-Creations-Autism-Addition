@@ -1,1 +1,730 @@
+name: Build Laurie's Creations Autism Edition
 
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Create Android project
+        run: |
+          SDK="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDK" --licenses >/dev/null || true
+          "$SDK" 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
+
+          mkdir -p app/src/main/java/com/lauriescreations/autismedition
+          mkdir -p app/src/main/res/drawable
+
+          cat > settings.gradle <<'GRADLE'
+          pluginManagement {
+            repositories {
+              google()
+              mavenCentral()
+              gradlePluginPortal()
+            }
+          }
+          dependencyResolutionManagement {
+            repositories {
+              google()
+              mavenCentral()
+            }
+          }
+          rootProject.name = 'LauriesCreationsAutismEdition'
+          include ':app'
+          GRADLE
+
+          cat > build.gradle <<'GRADLE'
+          plugins {
+            id 'com.android.application' version '8.7.3' apply false
+          }
+          GRADLE
+
+          cat > app/build.gradle <<'GRADLE'
+          plugins {
+            id 'com.android.application'
+          }
+
+          android {
+            namespace 'com.lauriescreations.autismedition'
+            compileSdk 35
+
+            defaultConfig {
+              applicationId 'com.lauriescreations.autismedition'
+              minSdk 23
+              targetSdk 35
+              versionCode 1
+              versionName '1.0-autism'
+            }
+
+            compileOptions {
+              sourceCompatibility JavaVersion.VERSION_17
+              targetCompatibility JavaVersion.VERSION_17
+            }
+
+            signingConfigs {
+              lcRelease {
+                if (System.getenv('LC_KEYSTORE_PATH')) {
+                  storeFile file(System.getenv('LC_KEYSTORE_PATH'))
+                  storePassword System.getenv('LC_STORE_PASSWORD')
+                  keyAlias System.getenv('LC_KEY_ALIAS')
+                  keyPassword System.getenv('LC_KEY_PASSWORD')
+                }
+              }
+            }
+
+            buildTypes {
+              release {
+                minifyEnabled false
+                if (System.getenv('LC_KEYSTORE_PATH')) {
+                  signingConfig signingConfigs.lcRelease
+                }
+              }
+            }
+          }
+          GRADLE
+
+      - name: Create Android manifest
+        run: |
+          cat > app/src/main/AndroidManifest.xml <<'XML'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <queries>
+              <package android:name="com.squareup"/>
+              <package android:name="com.squareup.dashboard"/>
+              <package android:name="com.squareup.payroll.team"/>
+              <package android:name="com.facebook.pages.app"/>
+              <package android:name="com.squareup.cash"/>
+              <package android:name="com.google.android.apps.docs"/>
+
+              <intent><action android:name="android.media.action.STILL_IMAGE_CAMERA"/></intent>
+              <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.APP_EMAIL"/></intent>
+              <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.APP_CALCULATOR"/></intent>
+              <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.APP_CALENDAR"/></intent>
+              <intent><action android:name="android.intent.action.VIEW"/><data android:mimeType="image/*"/></intent>
+              <intent><action android:name="android.settings.SETTINGS"/></intent>
+            </queries>
+
+            <application
+              android:label="Laurie's Creations Autism Edition"
+              android:icon="@drawable/appicon"
+              android:roundIcon="@drawable/appicon"
+              android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
+              <activity
+                android:name=".MainActivity"
+                android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.HOME"/>
+                  <category android:name="android.intent.category.DEFAULT"/>
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          XML
+
+      - name: Create launcher application
+        run: |
+          cat > app/src/main/java/com/lauriescreations/autismedition/MainActivity.java <<'JAVA'
+          package com.lauriescreations.autismedition;
+
+          import android.app.*;
+          import android.content.*;
+          import android.content.pm.*;
+          import android.graphics.*;
+          import android.graphics.drawable.*;
+          import android.net.*;
+          import android.os.*;
+          import android.provider.*;
+          import android.text.*;
+          import android.util.*;
+          import android.view.*;
+          import android.widget.*;
+
+          import java.security.*;
+          import javax.crypto.*;
+          import javax.crypto.spec.*;
+
+          public class MainActivity extends Activity {
+            private static final String PREFS = "lc_autism_pin";
+            private static final int PURPLE = Color.rgb(118, 70, 163);
+            private static final int DEEP_PURPLE = Color.rgb(82, 42, 122);
+
+            int dp(int n) {
+              return Math.round(n * getResources().getDisplayMetrics().density);
+            }
+
+            android.content.SharedPreferences prefs() {
+              return getSharedPreferences(PREFS, MODE_PRIVATE);
+            }
+
+            Intent category(String category) {
+              Intent i = new Intent(Intent.ACTION_MAIN);
+              i.addCategory(category);
+              return i;
+            }
+
+            Intent photos() {
+              Intent i = new Intent(Intent.ACTION_VIEW);
+              i.setDataAndType(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "image/*");
+              return i;
+            }
+
+            @Override
+            public void onCreate(Bundle state) {
+              super.onCreate(state);
+              getWindow().setStatusBarColor(DEEP_PURPLE);
+
+              FrameLayout root = new FrameLayout(this);
+              root.addView(new AutismBackgroundView(this), new FrameLayout.LayoutParams(-1, -1));
+
+              ScrollView scroll = new ScrollView(this);
+              scroll.setFillViewport(true);
+
+              LinearLayout content = new LinearLayout(this);
+              content.setOrientation(LinearLayout.VERTICAL);
+              content.setGravity(Gravity.CENTER_HORIZONTAL);
+              content.setPadding(dp(8), dp(12), dp(8), dp(20));
+
+              ImageView banner = new ImageView(this);
+              banner.setImageResource(R.drawable.topbanner);
+              banner.setScaleType(ImageView.ScaleType.FIT_CENTER);
+              banner.setAdjustViewBounds(true);
+              LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(190));
+              bp.bottomMargin = dp(8);
+              content.addView(banner, bp);
+
+              TextView subtitle = new TextView(this);
+              subtitle.setText("Autism Edition");
+              subtitle.setTextColor(Color.WHITE);
+              subtitle.setTextSize(16);
+              subtitle.setTypeface(null, Typeface.BOLD);
+              subtitle.setShadowLayer(8f, 0f, 2f, Color.argb(140, 50, 20, 60));
+              subtitle.setPadding(dp(8), 0, dp(8), dp(10));
+              content.addView(subtitle);
+
+              GridLayout grid = new GridLayout(this);
+              grid.setColumnCount(4);
+              grid.setUseDefaultMargins(false);
+
+              addApp(grid, "Square POS", "com.squareup");
+              addApp(grid, "Square Dashboard", "com.squareup.dashboard");
+              addApp(grid, "Square Team", "com.squareup.payroll.team");
+              addApp(grid, "Meta Business", "com.facebook.pages.app");
+              addApp(grid, "Cash App", "com.squareup.cash");
+              addIntent(grid, "Camera", new Intent("android.media.action.STILL_IMAGE_CAMERA"));
+              addIntent(grid, "Photos", photos());
+              addIntent(grid, "Email", category(Intent.CATEGORY_APP_EMAIL));
+              addApp(grid, "Google Drive", "com.google.android.apps.docs");
+              addSettings(grid);
+              addIntent(grid, "Calculator", category("android.intent.category.APP_CALCULATOR"));
+              addIntent(grid, "Calendar", category(Intent.CATEGORY_APP_CALENDAR));
+
+              content.addView(grid, new LinearLayout.LayoutParams(-1, -2));
+
+              TextView note = new TextView(this);
+              note.setText("PIN protects Exit Launcher and Settings");
+              note.setGravity(Gravity.CENTER);
+              note.setTextColor(Color.argb(235, 255, 255, 255));
+              note.setTextSize(12);
+              note.setShadowLayer(6f, 0f, 1f, Color.argb(120, 40, 20, 60));
+              note.setPadding(dp(10), dp(18), dp(10), dp(4));
+              content.addView(note);
+
+              TextView exit = new TextView(this);
+              exit.setText("ð Exit Launcher");
+              exit.setGravity(Gravity.CENTER);
+              exit.setTextColor(Color.WHITE);
+              exit.setTextSize(16);
+              exit.setTypeface(null, Typeface.BOLD);
+              exit.setPadding(dp(14), dp(14), dp(14), dp(14));
+              exit.setBackground(pill(Color.argb(205, 102, 58, 145)));
+              LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, -2);
+              ep.setMargins(dp(16), dp(8), dp(16), dp(8));
+              content.addView(exit, ep);
+              exit.setOnClickListener(v -> askPin("Exit launcher", this::exitLauncher));
+
+              TextView change = new TextView(this);
+              change.setText("Change exit PIN");
+              change.setGravity(Gravity.CENTER);
+              change.setTextColor(Color.WHITE);
+              change.setTextSize(13);
+              change.setPadding(dp(10), dp(8), dp(10), dp(10));
+              change.setOnClickListener(v -> askPin("Enter current PIN", this::createPin));
+              content.addView(change);
+
+              scroll.addView(content);
+              root.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+              setContentView(root);
+
+              if (!prefs().contains("pin_hash")) {
+                root.post(this::createPin);
+              }
+            }
+
+            Drawable pill(int color) {
+              GradientDrawable d = new GradientDrawable();
+              d.setColor(color);
+              d.setCornerRadius(dp(28));
+              return d;
+            }
+
+            void open(Intent intent) {
+              try {
+                startActivity(intent);
+              } catch (Exception e) {
+                Toast.makeText(this, "App not available", Toast.LENGTH_SHORT).show();
+              }
+            }
+
+            void addApp(GridLayout grid, String name, String pkg) {
+              Drawable icon = null;
+              try {
+                icon = getPackageManager().getApplicationIcon(pkg);
+              } catch (Exception ignored) {}
+
+              Drawable finalIcon = icon;
+              addTile(grid, name, finalIcon, () -> {
+                Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
+                if (i != null) {
+                  open(i);
+                } else {
+                  open(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + pkg)));
+                }
+              });
+            }
+
+            void addIntent(GridLayout grid, String name, Intent intent) {
+              Drawable icon = null;
+              try {
+                ResolveInfo info = getPackageManager().resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY);
+                if (info != null) icon = info.loadIcon(getPackageManager());
+              } catch (Exception ignored) {}
+
+              Drawable finalIcon = icon;
+              addTile(grid, name, finalIcon, () -> open(new Intent(intent)));
+            }
+
+            void addSettings(GridLayout grid) {
+              Intent settings = new Intent(Settings.ACTION_SETTINGS);
+              Drawable icon = null;
+              try {
+                ResolveInfo info = getPackageManager().resolveActivity(settings, PackageManager.MATCH_DEFAULT_ONLY);
+                if (info != null) icon = info.loadIcon(getPackageManager());
+              } catch (Exception ignored) {}
+              Drawable finalIcon = icon;
+              addTile(grid, "Settings", finalIcon, () -> askPin("Open Settings", () -> open(settings)));
+            }
+
+            void addTile(GridLayout grid, String name, Drawable icon, Runnable action) {
+              LinearLayout tile = new LinearLayout(this);
+              tile.setOrientation(LinearLayout.VERTICAL);
+              tile.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+              tile.setPadding(dp(2), dp(10), dp(2), dp(6));
+              tile.setClickable(true);
+              tile.setFocusable(true);
+
+              TypedValue ripple = new TypedValue();
+              if (getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true)) {
+                tile.setBackgroundResource(ripple.resourceId);
+              }
+
+              FrameLayout circle = new FrameLayout(this);
+              GradientDrawable bg = new GradientDrawable();
+              bg.setShape(GradientDrawable.OVAL);
+              bg.setColor(Color.argb(225, 255, 255, 255));
+              bg.setStroke(dp(1), Color.argb(100, 255, 255, 255));
+              circle.setBackground(bg);
+              circle.setElevation(dp(4));
+
+              LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(62), dp(62));
+              tile.addView(circle, cp);
+
+              if (icon != null) {
+                ImageView image = new ImageView(this);
+                image.setImageDrawable(icon);
+                image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                int pad = dp(11);
+                image.setPadding(pad, pad, pad, pad);
+                circle.addView(image, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+              } else {
+                TextView fallback = new TextView(this);
+                fallback.setText(glyph(name));
+                fallback.setGravity(Gravity.CENTER);
+                fallback.setTextColor(Color.WHITE);
+                fallback.setTextSize(22);
+                fallback.setTypeface(null, Typeface.BOLD);
+                GradientDrawable inner = new GradientDrawable();
+                inner.setShape(GradientDrawable.OVAL);
+                inner.setColor(iconColor(name));
+                fallback.setBackground(inner);
+                FrameLayout.LayoutParams fp = new FrameLayout.LayoutParams(dp(50), dp(50), Gravity.CENTER);
+                circle.addView(fallback, fp);
+              }
+
+              TextView label = new TextView(this);
+              label.setText(name);
+              label.setTextColor(Color.WHITE);
+              label.setTextSize(11);
+              label.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+              label.setTypeface(null, Typeface.BOLD);
+              label.setShadowLayer(6f, 0f, 1f, Color.argb(140, 45, 18, 60));
+              label.setMaxLines(2);
+              label.setEllipsize(TextUtils.TruncateAt.END);
+              label.setPadding(0, dp(6), 0, 0);
+              tile.addView(label, new LinearLayout.LayoutParams(-1, dp(40)));
+
+              tile.setOnClickListener(v -> action.run());
+
+              GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+              params.width = 0;
+              params.height = dp(118);
+              params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
+              params.setMargins(dp(1), dp(2), dp(1), dp(2));
+              grid.addView(tile, params);
+            }
+
+            String glyph(String name) {
+              if (name.equals("Square POS")) return "S";
+              if (name.equals("Square Dashboard")) return "D";
+              if (name.equals("Square Team")) return "T";
+              if (name.equals("Meta Business")) return "M";
+              if (name.equals("Cash App")) return "$";
+              if (name.equals("Camera")) return "â";
+              if (name.equals("Photos")) return "â¿";
+              if (name.equals("Email")) return "â";
+              if (name.equals("Google Drive")) return "D";
+              if (name.equals("Settings")) return "â";
+              if (name.equals("Calculator")) return "=";
+              if (name.equals("Calendar")) return "31";
+              return "â¢";
+            }
+
+            int iconColor(String name) {
+              if (name.startsWith("Square")) return Color.rgb(36, 39, 48);
+              if (name.equals("Meta Business")) return Color.rgb(24, 119, 242);
+              if (name.equals("Cash App")) return Color.rgb(0, 174, 74);
+              if (name.equals("Camera")) return Color.rgb(120, 74, 178);
+              if (name.equals("Photos")) return Color.rgb(229, 92, 147);
+              if (name.equals("Email")) return Color.rgb(60, 122, 220);
+              if (name.equals("Google Drive")) return Color.rgb(55, 142, 82);
+              if (name.equals("Settings")) return Color.rgb(103, 108, 122);
+              if (name.equals("Calendar")) return Color.rgb(35, 120, 220);
+              if (name.equals("Calculator")) return Color.rgb(98, 94, 129);
+              return PURPLE;
+            }
+
+            EditText pinInput() {
+              EditText input = new EditText(this);
+              input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+              input.setFilters(new InputFilter[]{ new InputFilter.LengthFilter(6) });
+              input.setHint("4 to 6 digits");
+              input.setSingleLine(true);
+              return input;
+            }
+
+            String hashPin(String pin, byte[] salt) throws Exception {
+              PBEKeySpec spec = new PBEKeySpec(pin.toCharArray(), salt, 100000, 256);
+              try {
+                byte[] bytes = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1").generateSecret(spec).getEncoded();
+                return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+              } finally {
+                spec.clearPassword();
+              }
+            }
+
+            boolean correctPin(String entered) {
+              try {
+                byte[] salt = android.util.Base64.decode(prefs().getString("pin_salt", ""), android.util.Base64.DEFAULT);
+                byte[] expected = android.util.Base64.decode(prefs().getString("pin_hash", ""), android.util.Base64.DEFAULT);
+                byte[] result = android.util.Base64.decode(hashPin(entered, salt), android.util.Base64.DEFAULT);
+                return MessageDigest.isEqual(expected, result);
+              } catch (Exception e) {
+                return false;
+              }
+            }
+
+            void createPin() {
+              EditText input = pinInput();
+              AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Create your exit PIN")
+                .setMessage("Choose a PIN containing 4 to 6 digits.")
+                .setView(input)
+                .setPositiveButton("Continue", null)
+                .setCancelable(false)
+                .create();
+
+              dialog.setOnShowListener(v ->
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(w -> {
+                  String pin = input.getText().toString();
+                  if (!pin.matches("[0-9]{4,6}")) {
+                    input.setError("Use 4 to 6 digits");
+                    return;
+                  }
+                  dialog.dismiss();
+                  confirmPin(pin);
+                })
+              );
+              dialog.show();
+            }
+
+            void confirmPin(String pin) {
+              EditText input = pinInput();
+              AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Confirm PIN")
+                .setMessage("Enter your new PIN a second time.")
+                .setView(input)
+                .setPositiveButton("Save PIN", null)
+                .setCancelable(false)
+                .create();
+
+              dialog.setOnShowListener(v ->
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(w -> {
+                  if (!pin.equals(input.getText().toString())) {
+                    input.setError("PINs do not match");
+                    return;
+                  }
+                  try {
+                    byte[] salt = new byte[16];
+                    new SecureRandom().nextBytes(salt);
+                    prefs().edit()
+                      .putString("pin_salt", android.util.Base64.encodeToString(salt, android.util.Base64.NO_WRAP))
+                      .putString("pin_hash", hashPin(pin, salt))
+                      .putInt("failed", 0)
+                      .putLong("locked_until", 0)
+                      .apply();
+                    dialog.dismiss();
+                    Toast.makeText(this, "PIN saved", Toast.LENGTH_SHORT).show();
+                  } catch (Exception e) {
+                    input.setError("Could not save PIN");
+                  }
+                })
+              );
+              dialog.show();
+            }
+
+            void askPin(String title, Runnable success) {
+              if (!prefs().contains("pin_hash")) {
+                createPin();
+                return;
+              }
+
+              long wait = prefs().getLong("locked_until", 0) - System.currentTimeMillis();
+              if (wait > 0) {
+                Toast.makeText(this, "Wait " + ((wait + 999) / 1000) + " seconds", Toast.LENGTH_LONG).show();
+                return;
+              }
+
+              EditText input = pinInput();
+              AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage("Enter your Laurieâs Creations PIN.")
+                .setView(input)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Unlock", null)
+                .create();
+
+              dialog.setOnShowListener(v ->
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(w -> {
+                  if (correctPin(input.getText().toString())) {
+                    prefs().edit().putInt("failed", 0).putLong("locked_until", 0).apply();
+                    dialog.dismiss();
+                    success.run();
+                  } else {
+                    int count = prefs().getInt("failed", 0) + 1;
+                    if (count >= 5) {
+                      prefs().edit().putInt("failed", 0).putLong("locked_until", System.currentTimeMillis() + 30000).apply();
+                      dialog.dismiss();
+                      Toast.makeText(this, "Try again in 30 seconds", Toast.LENGTH_LONG).show();
+                    } else {
+                      prefs().edit().putInt("failed", count).apply();
+                      input.setText("");
+                      input.setError("Incorrect PIN");
+                    }
+                  }
+                })
+              );
+              dialog.show();
+            }
+
+            void exitLauncher() {
+              Toast.makeText(this, "You can now select another default Home app", Toast.LENGTH_LONG).show();
+              open(new Intent(Settings.ACTION_HOME_SETTINGS));
+            }
+
+            @Override
+            public void onBackPressed() {
+              askPin("Exit launcher", this::exitLauncher);
+            }
+
+            class AutismBackgroundView extends View {
+              private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final Paint sparkle = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final Path path = new Path();
+
+              AutismBackgroundView(Context context) {
+                super(context);
+                stroke.setStyle(Paint.Style.STROKE);
+                stroke.setStrokeWidth(dp(7));
+                stroke.setStrokeCap(Paint.Cap.ROUND);
+                stroke.setStrokeJoin(Paint.Join.ROUND);
+                sparkle.setStyle(Paint.Style.STROKE);
+                sparkle.setStrokeWidth(dp(2));
+              }
+
+              @Override
+              protected void onDraw(Canvas canvas) {
+                int w = getWidth();
+                int h = getHeight();
+                if (w <= 0 || h <= 0) return;
+
+                Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
+                bg.setShader(new LinearGradient(0, 0, w, h,
+                  new int[]{
+                    Color.rgb(164, 115, 209),
+                    Color.rgb(121, 81, 173),
+                    Color.rgb(93, 52, 141)
+                  },
+                  null,
+                  Shader.TileMode.CLAMP));
+                canvas.drawRect(0, 0, w, h, bg);
+
+                fill.setStyle(Paint.Style.FILL);
+                fill.setColor(Color.argb(38, 255, 255, 255));
+                canvas.drawCircle(w * 0.18f, h * 0.18f, dp(90), fill);
+                fill.setColor(Color.argb(24, 255, 210, 238));
+                canvas.drawCircle(w * 0.82f, h * 0.30f, dp(76), fill);
+                fill.setColor(Color.argb(28, 255, 255, 205));
+                canvas.drawCircle(w * 0.60f, h * 0.82f, dp(110), fill);
+                fill.setColor(Color.argb(20, 184, 242, 255));
+                canvas.drawCircle(w * 0.10f, h * 0.78f, dp(72), fill);
+
+                drawInfinity(canvas, w * 0.22f, h * 0.30f, dp(84), dp(48), Color.argb(70, 255, 106, 170));
+                drawInfinity(canvas, w * 0.70f, h * 0.18f, dp(68), dp(38), Color.argb(68, 91, 201, 255));
+                drawInfinity(canvas, w * 0.72f, h * 0.74f, dp(96), dp(56), Color.argb(64, 255, 211, 92));
+                drawInfinity(canvas, w * 0.24f, h * 0.72f, dp(74), dp(44), Color.argb(62, 255, 148, 74));
+
+                drawSparkle(canvas, w * 0.18f, h * 0.14f, dp(7), Color.argb(170, 255, 255, 255));
+                drawSparkle(canvas, w * 0.82f, h * 0.12f, dp(8), Color.argb(150, 255, 239, 252));
+                drawSparkle(canvas, w * 0.90f, h * 0.66f, dp(7), Color.argb(150, 255, 255, 220));
+                drawSparkle(canvas, w * 0.12f, h * 0.60f, dp(9), Color.argb(150, 255, 240, 255));
+                drawSparkle(canvas, w * 0.54f, h * 0.86f, dp(8), Color.argb(150, 255, 255, 255));
+
+                drawDot(canvas, w * 0.40f, h * 0.22f, dp(4), Color.argb(100, 255, 211, 92));
+                drawDot(canvas, w * 0.58f, h * 0.23f, dp(4), Color.argb(100, 91, 201, 255));
+                drawDot(canvas, w * 0.80f, h * 0.54f, dp(5), Color.argb(110, 255, 148, 74));
+                drawDot(canvas, w * 0.28f, h * 0.58f, dp(5), Color.argb(110, 255, 106, 170));
+                drawDot(canvas, w * 0.65f, h * 0.88f, dp(4), Color.argb(110, 255, 255, 255));
+              }
+
+              void drawInfinity(Canvas canvas, float cx, float cy, float rx, float ry, int color) {
+                stroke.setColor(color);
+                path.reset();
+                path.moveTo(cx - rx * 1.1f, cy);
+                path.cubicTo(cx - rx * 1.1f, cy - ry, cx - rx * 0.35f, cy - ry, cx, cy);
+                path.cubicTo(cx + rx * 0.35f, cy + ry, cx + rx * 1.1f, cy + ry, cx + rx * 1.1f, cy);
+                path.cubicTo(cx + rx * 1.1f, cy - ry, cx + rx * 0.35f, cy - ry, cx, cy);
+                path.cubicTo(cx - rx * 0.35f, cy + ry, cx - rx * 1.1f, cy + ry, cx - rx * 1.1f, cy);
+                canvas.drawPath(path, stroke);
+              }
+
+              void drawSparkle(Canvas canvas, float x, float y, float r, int color) {
+                sparkle.setColor(color);
+                canvas.drawLine(x - r, y, x + r, y, sparkle);
+                canvas.drawLine(x, y - r, x, y + r, sparkle);
+                canvas.drawLine(x - r * 0.65f, y - r * 0.65f, x + r * 0.65f, y + r * 0.65f, sparkle);
+                canvas.drawLine(x + r * 0.65f, y - r * 0.65f, x - r * 0.65f, y + r * 0.65f, sparkle);
+              }
+
+              void drawDot(Canvas canvas, float x, float y, float r, int color) {
+                dot.setColor(color);
+                canvas.drawCircle(x, y, r, dot);
+              }
+            }
+          }
+          JAVA
+
+      - name: Restore Laurie's Creations artwork
+        run: |
+          curl --fail --location --silent --show-error --retry 3 \
+            -o /tmp/old-lauries-workflow.yml \
+            https://raw.githubusercontent.com/bradyicecream/Laurie-2/ffb4624b959ba08d284ad948dcd608dcdf6a675a/.github/workflows/build-apk.yml
+
+          python3 - <<'PY'
+          import base64
+          import pathlib
+          import re
+
+          source = pathlib.Path('/tmp/old-lauries-workflow.yml').read_text()
+
+          for marker, filename in [('ICON', 'appicon.webp'), ('BANNER', 'topbanner.webp')]:
+              pattern = r"cat <<'" + marker + r"'[^\n]*\n(.*?)^\s*" + marker + r"\s*$"
+              match = re.search(pattern, source, re.S | re.M)
+              if not match:
+                  raise RuntimeError('Missing artwork: ' + marker)
+
+              encoded = ''.join(re.findall(r'^\s*([A-Za-z0-9+/=]{20,})\s*$', match.group(1), re.M))
+              raw = base64.b64decode(encoded, validate=True)
+
+              if not raw.startswith(b'RIFF') or b'WEBP' not in raw[:16]:
+                  raise RuntimeError('Invalid artwork: ' + marker)
+
+              pathlib.Path('app/src/main/res/drawable/' + filename).write_bytes(raw)
+              print(filename, len(raw), 'bytes')
+          PY
+
+      - name: Build Android APK
+        env:
+          LAURIES_KEYSTORE_B64: ${{ secrets.LAURIES_KEYSTORE_B64 }}
+          LAURIES_KEYSTORE_PASSWORD: ${{ secrets.LAURIES_KEYSTORE_PASSWORD }}
+          LAURIES_KEY_ALIAS: ${{ secrets.LAURIES_KEY_ALIAS }}
+          LAURIES_KEY_PASSWORD: ${{ secrets.LAURIES_KEY_PASSWORD }}
+        run: |
+          if [ -n "$LAURIES_KEYSTORE_B64" ]; then
+            printf '%s' "$LAURIES_KEYSTORE_B64" | base64 -d > /tmp/lauries-release.jks
+
+            export LC_KEYSTORE_PATH=/tmp/lauries-release.jks
+            export LC_STORE_PASSWORD="$LAURIES_KEYSTORE_PASSWORD"
+            export LC_KEY_ALIAS="$LAURIES_KEY_ALIAS"
+            export LC_KEY_PASSWORD="$LAURIES_KEY_PASSWORD"
+
+            gradle --no-daemon :app:assembleRelease
+            cp app/build/outputs/apk/release/app-release.apk LauriesCreationsAutismEdition.apk
+          else
+            gradle --no-daemon :app:assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk LauriesCreationsAutismEdition.apk
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LauriesCreationsAutismEditionAPK
+          path: LauriesCreationsAutismEdition.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: lauriescreations-autism-${{ github.run_number }}
+          name: Laurie's Creations Autism Edition
+          files: LauriesCreationsAutismEdition.apk
